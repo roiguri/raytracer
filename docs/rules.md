@@ -131,6 +131,52 @@ In ray tracing, we use: **Color = Diffuse + Specular** (no ambient term)
 - **Problem**: Shadow rays may intersect the surface they originate from due to floating point errors
 - **Solution**: Start shadow rays slightly offset from the surface: `shadow_origin = hit_point + EPSILON * normal`
 
+### Soft Shadows and Shadow Intensity (Phase 4)
+**Shadow Intensity Parameter:**
+The `shadow_intensity` parameter of a light controls the **strength** of shadows:
+
+- **shadow_intensity = 0**: Light casts NO shadows
+  - Surfaces are fully lit regardless of occlusion
+  - Formula: `light_intensity = (1 - 0) * 1 + 0 * ratio = 1.0` (always)
+  - Use case: Fill lights, ambient lights that shouldn't cast shadows
+
+- **shadow_intensity = 1**: Light casts FULL shadows
+  - Fully occluded surfaces receive no light from this source
+  - Formula: `light_intensity = (1 - 1) * 1 + 1 * ratio = ratio`
+  - Use case: Key lights, primary directional lights
+
+- **shadow_intensity = 0.5** (example): Light casts PARTIAL shadows
+  - Even fully occluded surfaces receive some light
+  - Example: 0% rays hit → `light_intensity = 0.5 + 0.5 * 0 = 0.5`
+  - Example: 100% rays hit → `light_intensity = 0.5 + 0.5 * 1 = 1.0`
+  - Use case: Translucent blockers, artistic control
+
+**PDF Formula (page 6):**
+```
+light_intensity = (1 - shadow_intensity) * 1 + shadow_intensity * (% of rays that hit)
+```
+
+**Hard vs Soft Shadows:**
+- **Hard shadows**: Sharp, binary transition (light/dark)
+  - Created when: `shadow_intensity = 1` AND `num_shadow_rays = 1`
+  - Single ray to light center, binary occlusion test
+
+- **Soft shadows**: Gradual transition with penumbra region
+  - Created when: `shadow_intensity = 1` AND `num_shadow_rays > 1` (e.g., 5 → 25 rays)
+  - Multiple rays to different points on light surface
+  - Simulates area lights with radius
+
+**Key Insight:**
+- `shadow_intensity` controls **how much** shadow (strength/darkness)
+- `num_shadow_rays` controls **how gradual** the shadow transition is (softness)
+- `light.radius` controls **how large** the soft shadow penumbra is (area light size)
+
+**Implementation:**
+- Use jittered grid sampling (N×N cells, random point in each cell)
+- Prevents banding artifacts from regular grid patterns
+- light_radius = `light.radius * light.shadow_intensity`
+- When `shadow_intensity = 0`, skip shadow computation entirely
+
 ---
 
 ## Performance Best Practices

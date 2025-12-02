@@ -1,6 +1,6 @@
 # Ray Tracer Implementation Progress
 
-**Status**: 🟢 Phase 3 Complete
+**Status**: 🟢 Phase 4 Complete
 **Last Updated**: 2025-12-02
 
 ---
@@ -59,22 +59,29 @@ Status: ✅ Completed
 - [x] Commit Phase 3
 
 **Completion**: 11/11 tasks
+**Commit**: fcee103
 
 ---
 
 ## Phase 4: Soft Shadows
-Status: ⬜ Not Started
+Status: ✅ Completed
 
 ### Tasks
-- [ ] Understand shadow ray concept
-- [ ] Understand area lights and penumbra
-- [ ] Understand jittered sampling
-- [ ] Implement calculate_soft_shadow()
-- [ ] Test: Hard shadows (1 sample)
-- [ ] Test: Soft shadows (multiple samples)
-- [ ] Commit Phase 4
+- [x] Understand shadow ray concept
+- [x] Understand area lights and penumbra
+- [x] Understand jittered sampling
+- [x] Understand shadow_intensity parameter (0=no shadows, 1=full shadows)
+- [x] Implement helper functions (is_occluded, create_light_basis, sample_light_point)
+- [x] Implement compute_shadow_ray_ratio()
+- [x] Implement calculate_light_intensity() with PDF formula
+- [x] Update calculate_phong_shading() to use light intensity
+- [x] Create test scenes (hard and soft shadows)
+- [x] Test: Hard shadows (1 sample, shadow_intensity=1)
+- [x] Test: Soft shadows (multiple samples, shadow_intensity=0.9)
+- [x] Document shadow intensity behavior in docs/rules.md
+- [x] Commit Phase 4
 
-**Completion**: 0/7 tasks
+**Completion**: 13/13 tasks
 
 ---
 
@@ -112,12 +119,12 @@ Status: ⬜ Not Started
 
 ## Overall Progress
 
-**Total Tasks**: 45
-**Completed**: 0
+**Total Tasks**: 51
+**Completed**: 42
 **In Progress**: 0
-**Remaining**: 45
+**Remaining**: 9
 
-**Completion Percentage**: 0%
+**Completion Percentage**: 82%
 
 ---
 

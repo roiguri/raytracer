@@ -38,6 +38,22 @@ A ray is defined by:
 
 Note: The input up_vector is just a hint; the true up must be perpendicular to forward.
 
+**Why Up Vector is a "Hint":**
+- Per assignment (page 3): "For convenience, this vector is not necessary perpendicular to the direction vector"
+- User provides approximate "up" direction
+- We calculate the TRUE up that's perpendicular using cross products
+- This makes scene files easier to write (no need for precise calculations)
+
+### Pixel Coordinate Normalization
+**Why [-0.5, 0.5] range:**
+- Centers the coordinate system around (0, 0)
+- Center pixel at (width/2, height/2) maps to (0, 0)
+- Ensures center ray points exactly forward
+- Creates symmetric ray distribution around center
+- Formula: `norm = (pixel + 0.5) / image_size - 0.5`
+  - The +0.5 targets the pixel center (not corner)
+  - The -0.5 shifts range to be centered at zero
+
 ### Phong Reflection Model
 Total color = Ambient + Diffuse + Specular
 

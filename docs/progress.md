@@ -1,6 +1,6 @@
 # Ray Tracer Implementation Progress
 
-**Status**: 🟢 Phase 2 Complete
+**Status**: 🟢 Phase 3 Complete
 **Last Updated**: 2025-12-02
 
 ---
@@ -35,25 +35,30 @@ Status: ✅ Completed
 - [x] Create constants.py for EPSILON
 - [x] Handle edge case: ray inside cube
 - [x] Test: All intersection tests (12 tests)
-- [ ] Commit Phase 2
+- [x] Commit Phase 2
 
-**Completion**: 9/10 tasks
+**Completion**: 10/10 tasks
+**Commit**: 211a74c
 
 ---
 
 ## Phase 3: Shading & Illumination
-Status: ⬜ Not Started
+Status: ✅ Completed
 
 ### Tasks
-- [ ] Understand Phong reflection model
-- [ ] Understand diffuse lighting calculation
-- [ ] Understand specular highlights
-- [ ] Implement calculate_phong_shading()
-- [ ] Test: Matte rendering (diffuse only)
-- [ ] Test: Shiny rendering (with specular)
-- [ ] Commit Phase 3
+- [x] Understand Phong reflection model
+- [x] Understand diffuse lighting calculation
+- [x] Understand specular highlights
+- [x] Implement find_nearest_intersection()
+- [x] Implement calculate_phong_shading()
+- [x] Implement render() function
+- [x] Refactor: Extract normalize() to utils.py
+- [x] Refactor: Use MIN_T constant
+- [x] Test: Render simple scene
+- [x] Test: Render pool scene
+- [x] Commit Phase 3
 
-**Completion**: 0/7 tasks
+**Completion**: 11/11 tasks
 
 ---
 

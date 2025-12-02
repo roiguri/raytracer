@@ -93,20 +93,39 @@ Note: The input up_vector is just a hint; the true up must be perpendicular to f
   - The +0.5 targets the pixel center (not corner)
   - The -0.5 shifts range to be centered at zero
 
-### Phong Reflection Model
-Total color = Ambient + Diffuse + Specular
+### Phong Reflection Model (Phase 3)
+In ray tracing, we use: **Color = Diffuse + Specular** (no ambient term)
 
 - **Diffuse**: `Kd * I * max(0, N·L)`
-  - Kd = diffuse color
-  - I = light intensity
-  - N = surface normal
-  - L = light direction
+  - Kd = diffuse color (from material)
+  - I = light color/intensity
+  - N = surface normal (unit vector)
+  - L = light direction (unit vector, FROM surface TO light)
+  - max(0, ...) ensures back-facing surfaces get no light
 
 - **Specular**: `Ks * I * max(0, R·V)^α`
-  - Ks = specular color
-  - R = reflection direction
-  - V = view direction
-  - α = shininess exponent
+  - Ks = specular color (from material)
+  - I = light color/intensity
+  - R = reflection direction: `R = 2N(N·L) - L`
+  - V = view direction (FROM surface TO camera)
+  - α = shininess exponent (higher = sharper highlight)
+
+**Why no ambient?**
+- Background color provides base illumination when rays miss
+- Later: reflection/transparency rays provide indirect lighting
+- This matches the assignment specification
+
+**View Direction:**
+- Must point FROM hit point TO camera
+- Formula: `view_dir = normalize(camera_position - hit_point)`
+- Used for specular calculation only
+
+### Finding Nearest Intersection
+**min_t parameter prevents self-intersection:**
+- When casting secondary rays (shadows, reflections) from a surface
+- Floating-point errors can cause ray to immediately hit its origin surface
+- Solution: ignore intersections closer than `min_t = 0.001`
+- Applied in `find_nearest_intersection()` function
 
 ### Shadow Ray Bias
 - **Problem**: Shadow rays may intersect the surface they originate from due to floating point errors

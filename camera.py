@@ -1,4 +1,5 @@
 import numpy as np
+from utils import normalize
 
 
 class Camera:
@@ -10,16 +11,9 @@ class Camera:
         self.screen_width = screen_width
 
         # Calculate camera coordinate system
-        self.forward = self._normalize(self.look_at - self.position)
-        self.right = self._normalize(np.cross(self.forward, self.up_vector))
-        self.up = self._normalize(np.cross(self.right, self.forward))
-
-    def _normalize(self, v):
-        """Normalize a vector to unit length."""
-        norm = np.linalg.norm(v)
-        if norm == 0:
-            return v
-        return v / norm
+        self.forward = normalize(self.look_at - self.position)
+        self.right = normalize(np.cross(self.forward, self.up_vector))
+        self.up = normalize(np.cross(self.right, self.forward))
 
     def get_ray(self, pixel_x, pixel_y, image_width, image_height):
         """
@@ -48,6 +42,6 @@ class Camera:
                        self.up * (-norm_y * screen_height))
 
         # Calculate ray direction
-        ray_direction = self._normalize(screen_point - self.position)
+        ray_direction = normalize(screen_point - self.position)
 
         return self.position, ray_direction

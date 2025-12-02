@@ -14,12 +14,51 @@ This document captures important rules, mathematical principles, and best practi
 ### 2. Floating Point Comparisons
 - **Never use exact equality** for floats (e.g., `t == 0`)
 - Use small epsilon values for comparisons: `EPSILON = 1e-6`
+- Defined in `constants.py` for project-wide consistency
 - Example: `if t > EPSILON:` instead of `if t > 0:`
 
 ### 3. Ray Intersection Testing
 - **Always return the smallest positive t value** (closest intersection in front of camera)
 - Negative t values mean the intersection is behind the ray origin
-- Store intersection data: `(t, point, normal)` for later shading calculations
+- Store intersection data: `(t, normal)` for later shading calculations
+
+---
+
+## Ray-Object Intersection Rules
+
+### Ray-Sphere Intersection
+**Quadratic equation approach:**
+- Solve: `|O + t*D - C|² = r²`
+- Discriminant < 0: no intersection
+- Discriminant ≥ 0: use smallest positive t
+- Normal: `(hit_point - center) / radius`
+
+### Ray-Plane Intersection
+**Linear equation approach:**
+- Solve: `t = (offset - O·N) / (D·N)`
+- **Critical**: Always normalize plane normal in constructor
+- Scene files can contain non-unit-length normals
+- Check for parallel rays: `|D·N| < EPSILON`
+- Normal: always `self.normal` (constant for infinite planes)
+
+### Ray-Cube Intersection (Slab Method)
+**Three-slab intersection approach:**
+- Calculate entry/exit t for each axis pair
+- t_near = max of all entry times (last entry)
+- t_far = min of all exit times (first exit)
+- If t_near > t_far: ray misses cube
+
+**Edge Case: Ray Inside Cube**
+- If ray origin is inside the cube, `t_near` will be negative
+- Must use `t_far` (exit point) instead
+- **Critical**: Normal must be recalculated for exit point, not entry point
+- Check which face we're exiting through by comparing hit point to box boundaries
+- Wrong normal → incorrect shading and reflection directions
+
+**Why this edge case matters:**
+- Transparent objects: rays can pass through and start inside
+- Refraction: transmitted rays often originate inside objects
+- Camera inside geometry: artistic effects or debug views
 
 ---
 

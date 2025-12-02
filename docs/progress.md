@@ -1,6 +1,6 @@
 # Ray Tracer Implementation Progress
 
-**Status**: 🟡 Planning Phase
+**Status**: 🟢 Phase 2 Complete
 **Last Updated**: 2025-12-02
 
 ---
@@ -15,28 +15,29 @@ Status: ✅ Completed
 - [x] Create basic render loop
 - [x] Test: Verify center ray alignment
 - [x] Test: Verify corner ray divergence
-- [ ] Commit Phase 1
+- [x] Commit Phase 1
 
-**Completion**: 6/7 tasks
+**Completion**: 7/7 tasks
+**Commit**: b00bb4d
 
 ---
 
 ## Phase 2: Geometric Intersections
-Status: ⬜ Not Started
+Status: ✅ Completed
 
 ### Tasks
-- [ ] Understand ray-sphere intersection math
-- [ ] Implement sphere.intersect()
-- [ ] Understand ray-plane intersection math
-- [ ] Implement infinite_plane.intersect()
-- [ ] Understand ray-cube intersection (slab method)
-- [ ] Implement cube.intersect()
-- [ ] Implement find_nearest_intersection()
-- [ ] Test: Render silhouette (white on black)
-- [ ] Test: Verify all shapes visible
+- [x] Understand ray-sphere intersection math
+- [x] Implement sphere.intersect()
+- [x] Understand ray-plane intersection math
+- [x] Implement infinite_plane.intersect()
+- [x] Understand ray-cube intersection (slab method)
+- [x] Implement cube.intersect()
+- [x] Create constants.py for EPSILON
+- [x] Handle edge case: ray inside cube
+- [x] Test: All intersection tests (12 tests)
 - [ ] Commit Phase 2
 
-**Completion**: 0/10 tasks
+**Completion**: 9/10 tasks
 
 ---
 

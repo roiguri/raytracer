@@ -177,6 +177,52 @@ light_intensity = (1 - shadow_intensity) * 1 + shadow_intensity * (% of rays tha
 - light_radius = `light.radius * light.shadow_intensity`
 - When `shadow_intensity = 0`, skip shadow computation entirely
 
+### Recursive Ray Tracing (Phase 5)
+
+**Reflection Direction Calculation:**
+Formula: **R = D - 2(D·N)N**
+- D = incident ray direction (pointing towards surface)
+- N = surface normal (pointing away from surface)
+- R = reflected direction (points away from surface)
+
+Physical intuition:
+- Component parallel to surface stays the same
+- Component perpendicular to surface reverses (bounces back)
+
+**Color Composition Formula (PDF page 5):**
+```
+output_color = (background_color) · transparency
+             + (diffuse + specular) · (1 − transparency)
+             + (reflection_color)
+```
+
+**Key Insights:**
+1. **Reflection is INDEPENDENT of transparency**: Soap bubbles are both transparent and reflective
+2. **Local color fades with transparency**: As transparency increases from 0→1, diffuse+specular fade out
+3. **Background shows through transparency**: What's behind the object becomes visible
+4. **Recursion depth limit prevents infinite loops**: After max_recursions, return background color
+
+**Implementation Details:**
+- **Reflection rays**: Start from `hit_point + normal * MIN_T` to avoid self-intersection
+- **Transparency rays**: Start from `hit_point + ray_direction * MIN_T` and continue in same direction
+- **Colored reflections**: Multiply reflected color by `material.reflection_color` (e.g., red metal tints reflections red)
+- **Simple transparency**: No refraction (Snell's law), ray continues straight through
+
+**Recursion Base Cases:**
+1. `current_depth >= max_recursions`: Return background color
+2. Ray misses all surfaces: Return background color
+
+**Recursion Example:**
+```
+Camera ray hits mirror sphere (depth 0):
+  → Local color (Phong shading)
+  → Reflection ray hits another sphere (depth 1):
+      → Local color of that sphere
+      → Its reflection ray hits ground (depth 2):
+          → Ground's local color
+          → Ground's reflection (depth 3)...
+```
+
 ---
 
 ## Performance Best Practices

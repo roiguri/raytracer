@@ -159,6 +159,33 @@ def calculate_light_intensity(hit_point, light, surfaces, num_shadow_rays):
     return light_intensity
 
 
+def calculate_reflection_direction(incident_direction, normal):
+    """
+    Calculate the reflection direction for a ray bouncing off a surface.
+
+    Uses the formula: R = D - 2(D·N)N
+    where:
+    - D = incident ray direction (normalized, pointing TOWARDS surface)
+    - N = surface normal (normalized, pointing AWAY from surface)
+    - R = reflected direction (points AWAY from surface)
+
+    Physical intuition:
+    - The component of D parallel to the surface stays the same
+    - The component perpendicular to the surface reverses
+
+    Args:
+        incident_direction: Direction of incoming ray (normalized numpy array)
+        normal: Surface normal (normalized numpy array)
+
+    Returns:
+        numpy array: Reflected direction (normalized)
+    """
+    # R = D - 2(D·N)N
+    # (D·N) is the projection of D onto N (how much D points into the surface)
+    # 2(D·N)N is twice that projection - this "flips" the perpendicular component
+    return incident_direction - 2 * np.dot(incident_direction, normal) * normal
+
+
 def find_nearest_intersection(ray_origin, ray_direction, surfaces, min_t=MIN_T):
     """
     Find the nearest surface intersection along a ray.
@@ -243,9 +270,200 @@ def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfa
     return color
 
 
+def calculate_reflection_contribution(hit_point, ray_direction, normal, material, surfaces,
+                                      materials, lights, scene_settings, num_shadow_rays, current_depth):
+    """
+    Calculate the color contribution from reflections.
+
+    Casts a reflection ray and recursively traces it to find what's reflected.
+
+    Args:
+        hit_point: Point on surface where ray hit (numpy array)
+        ray_direction: Direction of incident ray (numpy array)
+        normal: Surface normal at hit point (numpy array)
+        material: Material of the surface
+        surfaces: List of all surfaces in scene
+        materials: List of all materials
+        lights: List of all lights
+        scene_settings: SceneSettings object
+        num_shadow_rays: Number of shadow rays for soft shadows
+        current_depth: Current recursion depth
+
+    Returns:
+        numpy array: RGB reflection contribution [0, 1]
+    """
+    # Check if material has any reflectivity
+    if not np.any(np.array(material.reflection_color) > 0):
+        return np.zeros(3)
+
+    # Calculate the reflection direction: R = D - 2(D·N)N
+    reflection_dir = calculate_reflection_direction(ray_direction, normal)
+
+    # Start slightly offset from surface to avoid self-intersection
+    reflection_origin = hit_point + normal * MIN_T
+
+    # Recursively trace the reflection ray
+    reflected_scene_color = trace_ray(
+        reflection_origin,
+        reflection_dir,
+        surfaces,
+        materials,
+        lights,
+        scene_settings,
+        num_shadow_rays,
+        current_depth + 1
+    )
+
+    # Multiply by material's reflection color (for colored reflections)
+    return reflected_scene_color * np.array(material.reflection_color)
+
+
+def calculate_transparency_contribution(hit_point, ray_direction, material, surfaces,
+                                       materials, lights, scene_settings, num_shadow_rays, current_depth):
+    """
+    Calculate the color contribution from transparency.
+
+    Casts a ray straight through the surface to find what's behind it.
+
+    Args:
+        hit_point: Point on surface where ray hit (numpy array)
+        ray_direction: Direction of incident ray (numpy array)
+        material: Material of the surface
+        surfaces: List of all surfaces in scene
+        materials: List of all materials
+        lights: List of all lights
+        scene_settings: SceneSettings object
+        num_shadow_rays: Number of shadow rays for soft shadows
+        current_depth: Current recursion depth
+
+    Returns:
+        numpy array: RGB transparency contribution [0, 1]
+    """
+    # Check if material has any transparency
+    if material.transparency <= 0:
+        return np.zeros(3)
+
+    # Continue ray in SAME direction (straight through)
+    # Offset along ray direction to avoid self-intersection
+    transparency_origin = hit_point + ray_direction * MIN_T
+
+    # Recursively trace to find what's behind this surface
+    background_scene_color = trace_ray(
+        transparency_origin,
+        ray_direction,  # Same direction - ray continues straight
+        surfaces,
+        materials,
+        lights,
+        scene_settings,
+        num_shadow_rays,
+        current_depth + 1
+    )
+
+    # Scale by material's transparency value
+    return background_scene_color * material.transparency
+
+
+def combine_color_components(local_color, reflection_color, transparency_color, material):
+    """
+    Combine local, reflection, and transparency colors using the PDF formula.
+
+    Formula (PDF page 5):
+        output = (background) · transparency
+               + (diffuse + specular) · (1 − transparency)
+               + (reflection)
+
+    Args:
+        local_color: Diffuse + specular from Phong shading (numpy array)
+        reflection_color: Color from reflections (numpy array)
+        transparency_color: Color from transparency (background) (numpy array)
+        material: Material object
+
+    Returns:
+        numpy array: Final combined RGB color [0, 1]
+    """
+    return (
+        transparency_color +                           # background · transparency
+        local_color * (1.0 - material.transparency) +  # local · (1 - transparency)
+        reflection_color                               # reflection (independent!)
+    )
+
+
+def trace_ray(ray_origin, ray_direction, surfaces, materials, lights, scene_settings,
+              num_shadow_rays, current_depth=0):
+    """
+    Recursively trace a ray through the scene, handling reflections and transparency.
+
+    This is the core recursive function that implements the full ray tracing algorithm.
+
+    Formula from PDF (page 5):
+        output_color = (background_color) · transparency
+                     + (diffuse + specular) · (1 − transparency)
+                     + (reflection_color)
+
+    Args:
+        ray_origin: Origin point of the ray (numpy array)
+        ray_direction: Direction of the ray (normalized numpy array)
+        surfaces: List of all surfaces in the scene
+        materials: List of Material objects
+        lights: List of Light objects
+        scene_settings: SceneSettings object (contains background_color, max_recursions)
+        num_shadow_rays: Number of shadow rays for soft shadows
+        current_depth: Current recursion depth (starts at 0)
+
+    Returns:
+        numpy array: RGB color [0, 1] for this ray
+    """
+    # BASE CASE 1: Maximum recursion depth reached
+    # Return background color to stop infinite recursion
+    if current_depth >= scene_settings.max_recursions:
+        return np.array(scene_settings.background_color)
+
+    # Find the nearest surface intersection
+    _, hit_point, normal, surface = find_nearest_intersection(
+        ray_origin, ray_direction, surfaces
+    )
+
+    # BASE CASE 2: Ray doesn't hit anything
+    # Return background color
+    if surface is None:
+        return np.array(scene_settings.background_color)
+
+    # RECURSIVE CASE: Ray hit a surface
+    # TODO: verify material index is valid
+    material = materials[surface.material_index - 1]
+
+    # ===== STEP 1: Calculate LOCAL color (diffuse + specular with shadows) =====
+    view_dir = normalize(ray_origin - hit_point)
+    local_color = calculate_phong_shading(
+        hit_point, normal, view_dir, material, lights, surfaces, num_shadow_rays
+    )
+
+    # ===== STEP 2: Calculate REFLECTION contribution =====
+    reflection_color = calculate_reflection_contribution(
+        hit_point, ray_direction, normal, material, surfaces, materials,
+        lights, scene_settings, num_shadow_rays, current_depth
+    )
+
+    # ===== STEP 3: Calculate TRANSPARENCY contribution =====
+    transparency_color = calculate_transparency_contribution(
+        hit_point, ray_direction, material, surfaces, materials,
+        lights, scene_settings, num_shadow_rays, current_depth
+    )
+
+    # ===== STEP 4: Combine all components using PDF formula =====
+    final_color = combine_color_components(
+        local_color, reflection_color, transparency_color, material
+    )
+
+    return final_color
+
+
 def render(camera, scene_settings, materials, surfaces, lights, width, height):
     """
-    Render the scene with soft shadows.
+    Render the scene with recursive ray tracing (reflections, transparency, soft shadows).
+
+    This is the main rendering loop that shoots a ray through each pixel and
+    uses recursive ray tracing to calculate the final color.
 
     Args:
         camera: Camera object
@@ -264,28 +482,21 @@ def render(camera, scene_settings, materials, surfaces, lights, width, height):
 
     for y in range(height):
         for x in range(width):
-            # Generate ray for this pixel
+            # Generate ray for this pixel (from camera through pixel)
             ray_origin, ray_direction = camera.get_ray(x, y, width, height)
 
-            # Find nearest intersection
-            _, hit_point, normal, surface = find_nearest_intersection(
-                ray_origin, ray_direction, surfaces
+            # Recursively trace this ray through the scene
+            # This handles: intersection, shading, reflections, transparency
+            color = trace_ray(
+                ray_origin,
+                ray_direction,
+                surfaces,
+                materials,
+                lights,
+                scene_settings,
+                num_shadow_rays,
+                current_depth=0  # Start at depth 0
             )
-
-            if surface is None:
-                # No intersection - use background color
-                color = np.array(scene_settings.background_color)
-            else:
-                # Get material for the surface
-                material = materials[surface.material_index - 1]  # Material indices start at 1
-
-                # View direction (from hit point to camera)
-                view_dir = normalize(ray_origin - hit_point)
-
-                # Calculate Phong shading with shadows
-                color = calculate_phong_shading(
-                    hit_point, normal, view_dir, material, lights, surfaces, num_shadow_rays
-                )
 
             # Clamp color to [0, 1] and convert to [0, 255]
             color = np.clip(color, 0, 1)

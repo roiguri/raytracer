@@ -1,0 +1,33 @@
+# Test scene for REFLECTIONS: mirror sphere reflecting other objects
+# Camera looking at reflective sphere from angle
+cam		5	3	5		0	0	0		0	1	0	1	1
+
+# Settings: blue background, 1 shadow ray, recursion depth 5
+set		0.2	0.3	0.5		1	5
+
+# Material 0: Red diffuse sphere (non-reflective)
+mtl		1	0	0		0.3	0.3	0.3		0	0	0		50	0
+
+# Material 1: Mirror sphere (high reflectivity, white reflection)
+mtl		0.2	0.2	0.2		0.3	0.3	0.3		0.9	0.9	0.9		100	0
+
+# Material 2: Green diffuse sphere (non-reflective)
+mtl		0	1	0		0.3	0.3	0.3		0	0	0		50	0
+
+# Material 3: Ground plane (slight reflectivity)
+mtl		0.3	0.3	0.3		0.1	0.1	0.1		0.3	0.3	0.3		10	0
+
+# Ground plane
+pln		0	1	0		-1		4
+
+# Center: Mirror sphere (will reflect the other spheres)
+sph		0	0	0		1	2
+
+# Left: Red sphere (will be reflected in mirror)
+sph		-2.5	0	0		0.8	1
+
+# Right: Green sphere (will be reflected in mirror)
+sph		2.5	0	0.5		0.8	3
+
+# Light above and to the side
+lgt		3	5	3		1	1	1		1	1	0.5

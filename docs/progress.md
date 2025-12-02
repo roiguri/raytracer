@@ -1,6 +1,6 @@
 # Ray Tracer Implementation Progress
 
-**Status**: 🟢 Phase 4 Complete
+**Status**: 🟢 Phase 5 Complete
 **Last Updated**: 2025-12-02
 
 ---
@@ -82,23 +82,33 @@ Status: ✅ Completed
 - [x] Commit Phase 4
 
 **Completion**: 13/13 tasks
+**Commit**: 5449b1e
 
 ---
 
 ## Phase 5: Recursive Ray Tracing
-Status: ⬜ Not Started
+Status: ✅ Completed
 
 ### Tasks
-- [ ] Understand reflection vector calculation
-- [ ] Understand recursive ray tracing
-- [ ] Refactor into trace_ray() function
-- [ ] Implement reflection logic
-- [ ] Implement transparency logic
-- [ ] Test: Verify reflections on spheres
-- [ ] Test: Verify transparency
-- [ ] Commit Phase 5
+- [x] Understand reflection vector calculation (R = D - 2(D·N)N)
+- [x] Understand recursive ray tracing (depth-based recursion)
+- [x] Implement calculate_reflection_direction() helper
+- [x] Implement calculate_reflection_contribution() helper
+- [x] Implement calculate_transparency_contribution() helper
+- [x] Implement combine_color_components() helper (PDF formula)
+- [x] Refactor into trace_ray() function (orchestrates all components)
+- [x] Implement reflection logic (colored reflections, self-intersection prevention)
+- [x] Implement transparency logic (straight-through rays, no refraction)
+- [x] Create test scenes (reflections, transparency, combined)
+- [x] Test: Verify reflections on spheres (mirror sphere scene)
+- [x] Test: Verify transparency (glass sphere scene)
+- [x] Test: Combined effects (soap bubble scene)
+- [x] Test: Pool scene with reflective spheres (200×200)
+- [x] Refactor trace_ray() to use helper functions
+- [x] Document recursive ray tracing in docs/rules.md
+- [x] Commit Phase 5
 
-**Completion**: 0/8 tasks
+**Completion**: 17/17 tasks
 
 ---
 
@@ -119,12 +129,12 @@ Status: ⬜ Not Started
 
 ## Overall Progress
 
-**Total Tasks**: 51
-**Completed**: 42
+**Total Tasks**: 68
+**Completed**: 59
 **In Progress**: 0
 **Remaining**: 9
 
-**Completion Percentage**: 82%
+**Completion Percentage**: 87%
 
 ---
 

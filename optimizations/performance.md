@@ -47,14 +47,14 @@
 
 ---
 
-## Phase 2.2: Vectorized Shadow Rays
-- **Changes:** Vectorized shadow ray generation and computation
-- **Time:** [To be measured]
-- **Expected Speedup:** ~30% (264s → ~185s)
-- **Actual Speedup:** [To be filled]
-- **Image:** test/phase2_vectorized.png
-- **Validation:** [MSE, PSNR values to be filled]
-- **Status:** Not started
+## Phase 2.2: InfinitePlane Batch Intersection (300×300)
+- **Changes:** Implemented intersect_batch() for InfinitePlane
+- **Time:** 208.49 seconds (3.47 minutes)
+- **Speedup:** 7.9% faster than 300×300 baseline (226.35s → 208.49s)
+- **Image:** test/phase2.2_plane_batch.png
+- **Validation:** MSE 0.000070 (✓), PSNR 41.52 dB (✓)
+- **Notes:** Solid incremental improvement. Vectorized plane-ray intersection using dot products.
+- **Status:** ✓ Complete
 
 ---
 

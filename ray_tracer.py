@@ -158,27 +158,13 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_r
     distances = np.linalg.norm(ray_directions, axis=1)  # (N,)
     ray_directions = ray_directions / distances[:, np.newaxis]  # Normalize
 
-    # Track which rays are unoccluded
     unoccluded_mask = np.ones(total_samples, dtype=bool)
 
-    # Test all surfaces using batch intersection
     for surface in surfaces:
-        # Check if surface has batch intersection method
-        if hasattr(surface, 'intersect_batch'):
-            t_values = surface.intersect_batch(ray_origins, ray_directions)
+        t_values = surface.intersect_batch(ray_origins, ray_directions)
+        blocking_mask = (t_values > EPSILON) & (t_values < distances)
+        unoccluded_mask &= ~blocking_mask
 
-            # Mark rays that hit this surface before reaching light
-            blocking_mask = (t_values > EPSILON) & (t_values < distances)
-            unoccluded_mask &= ~blocking_mask  # Set to False if blocked
-        else:
-            # Fallback to single-ray testing for surfaces without batch method
-            for idx in range(total_samples):
-                if unoccluded_mask[idx]:  # Only test if not already blocked
-                    t, _ = surface.intersect(ray_origins[idx], ray_directions[idx])
-                    if t is not None and EPSILON < t < distances[idx]:
-                        unoccluded_mask[idx] = False
-
-    # Return ratio of unoccluded rays
     return np.sum(unoccluded_mask) / total_samples
 
 

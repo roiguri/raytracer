@@ -103,14 +103,22 @@
 ---
 
 ## Phase 3: Transparent Shadows (Optimized)
-- **Changes:** Add optimized transparent shadow support with early exits
-- **Time (opaque):** [To be measured]
-- **Time (transparent):** [To be measured]
-- **Expected Overhead:** 5-10% for transparent scenes
-- **Image (opaque):** test/phase3_opaque.png
-- **Image (transparent):** test/phase3_transparent.png
-- **Validation:** [MSE, PSNR values vs main branch]
-- **Status:** Not started
+- **Changes:**
+  - Added transparent shadow support with light factor accumulation
+  - Early exit when all rays are fully blocked (light_factors == 0.0)
+  - Early exit for fully opaque materials (transparency == 0.0)
+  - Vectorized transparency accumulation through multiple surfaces
+- **Time (300×300 pool, opaque):** 295.93 seconds (4.93 minutes)
+- **Time (500×500 pool, opaque):** 891.09 seconds (14.85 minutes)
+- **Overhead vs Phase 2.4:** 43.5% slower (206.25s → 295.93s for 300×300)
+- **Image:** test/pool_transparent_test.png
+- **Validation:** Functionality validated - renders complete successfully
+- **Notes:**
+  - Significant overhead due to float64 light_factors array instead of boolean mask
+  - Additional overhead from transparency checks per surface (materials lookup)
+  - Performance regression indicates the transparency support adds computational cost even for fully opaque scenes
+  - May need optimization: consider using boolean fast path when no transparent materials in scene
+- **Status:** ✓ Complete (functional, but with performance regression)
 
 ---
 
@@ -119,19 +127,29 @@
 | Phase | Scene | Resolution | Time (s) | Speedup vs Baseline | Notes |
 |-------|-------|------------|----------|---------------------|-------|
 | Baseline | Pool | 200×200 | 268.46 | 0% | Initial baseline |
+| Baseline | Pool | 300×300 | 226.35 | - | 300×300 baseline |
 | Phase 1 | Pool | 200×200 | ~268 | 0% | Progress tracking only |
 | Phase 2.1 | Pool | 200×200 | 100.61 | 62.5% | Sphere batch intersection |
 | Phase 2.2 | Pool | 300×300 | 208.49 | 7.9% (vs 300×300 baseline) | Plane batch intersection |
 | Phase 2.3 | Cubes | 300×300 | 242.29 | 18.0% (vs cubes baseline) | Cube batch intersection |
-| Phase 2.4 | Pool | 300×300 | 206.25 | 1.1% (vs Phase 2.2) | Early exit optimization |
+| Phase 2.4 | Pool | 300×300 | 206.25 | 8.9% (vs 300×300 baseline) | Early exit optimization |
 | Phase 2.5 | - | - | - | - | SKIPPED (complexity vs gain) |
 | Phase 2.6 | - | - | - | - | SKIPPED (no actual benefit) |
+| Phase 3 | Pool | 300×300 | 295.93 | -30.8% (vs 300×300 baseline) | Transparent shadows (regression) |
+| Phase 3 | Pool | 500×500 | 891.09 | - | Transparent shadows 500×500 |
 
 **Target:** 40%+ speedup (268s → <161s for 200×200)
-**Current Status:** ✓ Target EXCEEDED
+**Current Status (Phase 2.4):** ✓ Target EXCEEDED
+**Current Status (Phase 3):** ✗ Performance regression due to transparency overhead
 
-**Phase 2 Complete:**
+**Phase 2 Complete (Best Performance):**
 - 200×200 pool scene: 268.46s → 100.61s (62.5% faster, 2.67× speedup)
 - 300×300 pool scene: 226.35s → 206.25s (8.9% faster)
 - All optimizations focused on vectorizing shadow ray computation
 - Image quality maintained (MSE < 0.001, PSNR > 40 dB)
+
+**Phase 3 Transparent Shadows:**
+- 300×300 pool scene: 226.35s → 295.93s (30.8% SLOWER)
+- Functional implementation complete but with significant performance cost
+- Overhead affects even fully opaque scenes due to float64 arrays and material lookups
+- **Recommendation:** Consider boolean fast-path when scene has no transparent materials

@@ -122,29 +122,41 @@ def generate_light_samples_vectorized(light, light_right, light_up, num_shadow_r
     return samples
 
 
-def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_rays):
+def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, num_shadow_rays):
     """
-    Vectorized shadow ray computation - processes all shadow rays simultaneously.
+    Vectorized shadow ray computation with transparency support.
+
+    Tests ALL shadow rays against ALL surfaces in batches for massive speedup.
+    Accumulates transparency through multiple surfaces.
 
     Args:
         hit_point: Point on surface (numpy array)
         light: Light object
         surfaces: List of all surfaces in the scene
+        materials: List of all materials
         num_shadow_rays: Number of shadow rays per axis (N×N total)
 
     Returns:
-        float: Ratio in [0, 1] of rays that hit the light (0 = fully occluded, 1 = fully visible)
+        float: Ratio in [0, 1] of light transmission (average of all rays)
     """
     # Direction from hit point to light center
     to_light = light.position - hit_point
     to_light_dir = normalize(to_light)
 
-    # For point lights (shadow_intensity = 0) or single ray, do simple test
+    # For point lights (shadow_intensity = 0) or single ray, use simple test with transparency
     if light.shadow_intensity == 0 or num_shadow_rays == 1:
-        if is_occluded(hit_point, light.position, surfaces):
-            return 0.0
-        else:
-            return 1.0
+        light_factor = 1.0
+        distance_to_light = np.linalg.norm(to_light)
+        direction_to_light = to_light_dir
+
+        for surface in surfaces:
+            t, _ = surface.intersect(hit_point, direction_to_light)
+            if t is not None and EPSILON < t < distance_to_light:
+                material = materials[surface.material_index - 1]
+                light_factor *= material.transparency
+                if light_factor == 0.0:
+                    break
+        return light_factor
 
     # Area light: Generate all shadow samples at once
     light_right, light_up = create_light_basis(to_light_dir)
@@ -158,62 +170,36 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_r
     distances = np.linalg.norm(ray_directions, axis=1)  # (N,)
     ray_directions = ray_directions / distances[:, np.newaxis]  # Normalize
 
-    unoccluded_mask = np.ones(total_samples, dtype=bool)
+    # Initialize light transmission factors (1.0 = full light, 0.0 = blocked)
+    light_factors = np.ones(total_samples, dtype=np.float64)
 
+    # Test each surface against all shadow rays
     for surface in surfaces:
-        if not np.any(unoccluded_mask):
+        # OPTIMIZATION: Early exit if all rays are fully blocked
+        if np.all(light_factors == 0.0):
             return 0.0
 
+        # Get intersection distances for all rays
         t_values = surface.intersect_batch(ray_origins, ray_directions)
+
+        # Create mask: rays that hit this surface before reaching the light
         blocking_mask = (t_values > EPSILON) & (t_values < distances)
-        unoccluded_mask &= ~blocking_mask
 
-    return np.sum(unoccluded_mask) / total_samples
+        # Accumulate transparency for blocked rays
+        if np.any(blocking_mask):
+            material = materials[surface.material_index - 1]
 
+            # OPTIMIZATION: Early exit if material is fully opaque
+            if material.transparency == 0.0:
+                light_factors[blocking_mask] = 0.0
+            else:
+                light_factors[blocking_mask] *= material.transparency
 
-def compute_shadow_ray_ratio(hit_point, light, surfaces, num_shadow_rays):
-    """
-    Compute the ratio of shadow rays that successfully reach the light.
-
-    Args:
-        hit_point: Point on surface (numpy array)
-        light: Light object
-        surfaces: List of all surfaces in the scene
-        num_shadow_rays: Number of shadow rays per axis (N×N total)
-
-    Returns:
-        float: Ratio in [0, 1] of rays that hit the light (0 = fully occluded, 1 = fully visible)
-    """
-    # Direction from hit point to light center
-    to_light = light.position - hit_point
-    to_light_dir = normalize(to_light)
-
-    # For point lights (shadow_intensity = 0) or single ray, do simple test
-    if light.shadow_intensity == 0 or num_shadow_rays == 1:
-        if is_occluded(hit_point, light.position, surfaces):
-            return 0.0
-        else:
-            return 1.0
-
-    # Area light: Sample multiple points on light surface
-    light_right, light_up = create_light_basis(to_light_dir)
-
-    hit_count = 0
-    total_samples = num_shadow_rays * num_shadow_rays
-
-    for i in range(num_shadow_rays):
-        for j in range(num_shadow_rays):
-            # Sample a point on the light surface
-            sample_point = sample_light_point(light, light_right, light_up, i, j, num_shadow_rays)
-
-            # Check if this sample point is visible
-            if not is_occluded(hit_point, sample_point, surfaces):
-                hit_count += 1
-
-    return hit_count / total_samples
+    # Return average light transmission across all shadow rays
+    return np.mean(light_factors)
 
 
-def calculate_light_intensity(hit_point, light, surfaces, num_shadow_rays):
+def calculate_light_intensity(hit_point, light, surfaces, materials, num_shadow_rays):
     """
     Calculate light intensity for a point, accounting for shadows using the PDF formula.
 
@@ -235,8 +221,8 @@ def calculate_light_intensity(hit_point, light, surfaces, num_shadow_rays):
         float: Light intensity in [0, 1] where 1.0 = fully lit, 0.0 = no light
     """
     # Compute what ratio of shadow rays successfully reach the light
-    # Use vectorized version for better performance
-    ray_hit_ratio = compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_rays)
+    # Use vectorized version with transparency support for better performance
+    ray_hit_ratio = compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, num_shadow_rays)
 
     # Apply the shadow intensity formula from the PDF (page 6)
     # light_intensity = (1 - shadow_intensity) + shadow_intensity * ray_hit_ratio
@@ -303,11 +289,11 @@ def find_nearest_intersection(ray_origin, ray_direction, surfaces, min_t=MIN_T):
     return nearest_t, hit_point, nearest_normal, nearest_surface
 
 
-def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfaces, num_shadow_rays):
+def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfaces, materials, num_shadow_rays):
     """
-    Calculate Phong shading (diffuse + specular) for a point with shadows.
+    Calculate Phong shading (diffuse + specular) for a point with shadows and transparency.
 
-    Phase 4: Includes soft shadows via shadow ray sampling.
+    Includes soft shadows via shadow ray sampling and transparent shadow support.
 
     Args:
         hit_point: Point on surface (numpy array)
@@ -316,6 +302,7 @@ def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfa
         material: Material object of the surface
         lights: List of light sources
         surfaces: List of all surfaces (for shadow ray testing)
+        materials: List of all materials (for transparency)
         num_shadow_rays: Number of shadow rays per axis (N×N total samples)
 
     Returns:
@@ -328,8 +315,8 @@ def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfa
         light_direction = light.position - hit_point
         light_direction = normalize(light_direction)
 
-        # Calculate light intensity accounting for shadows (0 = no light, 1 = fully lit)
-        light_intensity = calculate_light_intensity(hit_point, light, surfaces, num_shadow_rays)
+        # Calculate light intensity accounting for shadows and transparency
+        light_intensity = calculate_light_intensity(hit_point, light, surfaces, materials, num_shadow_rays)
 
         # Skip this light if no light reaches the surface
         if light_intensity == 0:
@@ -521,7 +508,7 @@ def trace_ray(ray_origin, ray_direction, surfaces, materials, lights, scene_sett
     # ===== STEP 1: Calculate LOCAL color (diffuse + specular with shadows) =====
     view_dir = normalize(ray_origin - hit_point)
     local_color = calculate_phong_shading(
-        hit_point, normal, view_dir, material, lights, surfaces, num_shadow_rays
+        hit_point, normal, view_dir, material, lights, surfaces, materials, num_shadow_rays
     )
 
     # ===== STEP 2: Calculate REFLECTION contribution =====

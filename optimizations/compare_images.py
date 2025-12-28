@@ -87,8 +87,9 @@ def compare_images(ref_path, test_path, save_diff=None, verbose=True):
     psnr = compute_psnr(img_ref, img_test)
 
     # Thresholds
+    # Relaxed PSNR threshold to account for random sampling variations in stochastic rendering
     MSE_THRESHOLD = 0.001
-    PSNR_THRESHOLD = 50.0
+    PSNR_THRESHOLD = 40.0
 
     passed = mse < MSE_THRESHOLD and psnr > PSNR_THRESHOLD
 

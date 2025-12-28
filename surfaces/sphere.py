@@ -1,4 +1,5 @@
 import numpy as np
+from constants import EPSILON
 
 
 class Sphere:
@@ -62,3 +63,61 @@ class Sphere:
         normal = (hit_point - self.position) / self.radius
 
         return t, normal
+
+    def intersect_batch(self, ray_origins, ray_directions):
+        """
+        Test multiple rays against this sphere simultaneously using vectorization.
+
+        Uses NumPy broadcasting to test N rays in parallel, significantly faster
+        than testing each ray individually in a loop.
+
+        Args:
+            ray_origins: np.ndarray, shape (N, 3) - origins of N rays
+            ray_directions: np.ndarray, shape (N, 3) - directions of N rays (normalized)
+
+        Returns:
+            t_values: np.ndarray, shape (N,) - distance to nearest intersection for each ray
+                      np.inf where no valid intersection occurs
+        """
+        # Vector from sphere center to each ray origin (N, 3)
+        oc = ray_origins - self.position
+
+        # Quadratic coefficients for all rays at once
+        # a = D·D for each ray (should be ~1.0 if directions are normalized)
+        a = np.sum(ray_directions ** 2, axis=1)  # (N,)
+
+        # b = 2*D·(O-C) for each ray
+        b = 2.0 * np.sum(ray_directions * oc, axis=1)  # (N,)
+
+        # c = (O-C)·(O-C) - r² for each ray
+        c = np.sum(oc ** 2, axis=1) - self.radius ** 2  # (N,)
+
+        # Calculate discriminant: b² - 4ac
+        discriminant = b**2 - 4*a*c  # (N,)
+
+        # Initialize all results as no intersection (inf)
+        t_values = np.full(len(ray_origins), np.inf)
+
+        # Only process rays with valid intersections (discriminant >= 0)
+        valid_mask = discriminant >= 0
+
+        if np.any(valid_mask):
+            # Extract coefficients for valid rays
+            sqrt_disc = np.sqrt(discriminant[valid_mask])
+            a_valid = a[valid_mask]
+            b_valid = b[valid_mask]
+
+            # Calculate both solutions using quadratic formula
+            t1 = (-b_valid - sqrt_disc) / (2.0 * a_valid)
+            t2 = (-b_valid + sqrt_disc) / (2.0 * a_valid)
+
+            # Choose nearest positive t for each ray
+            # If t1 > EPSILON, use t1 (closer intersection)
+            # Else if t2 > EPSILON, use t2 (farther intersection, ray inside sphere)
+            # Else no valid intersection (both behind ray or too close)
+            t_near = np.where(t1 > EPSILON, t1, t2)
+
+            # Only keep intersections that are in front of the ray
+            t_values[valid_mask] = np.where(t_near > EPSILON, t_near, np.inf)
+
+        return t_values

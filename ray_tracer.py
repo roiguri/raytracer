@@ -87,6 +87,101 @@ def sample_light_point(light, light_right, light_up, cell_i, cell_j, num_shadow_
     return light.position + sample_offset
 
 
+def generate_light_samples_vectorized(light, light_right, light_up, num_shadow_rays):
+    """
+    Generate all N×N shadow sample points at once using vectorized operations.
+
+    Args:
+        light: Light object
+        light_right: Right basis vector for light plane
+        light_up: Up basis vector for light plane
+        num_shadow_rays: Number of shadow rays per axis (N×N total grid)
+
+    Returns:
+        np.ndarray, shape (N*N, 3) - all sample points on light surface
+    """
+    total_samples = num_shadow_rays * num_shadow_rays
+    samples = np.zeros((total_samples, 3))
+
+    idx = 0
+    for i in range(num_shadow_rays):
+        for j in range(num_shadow_rays):
+            # Jittered grid sampling
+            u = (i + np.random.random()) / num_shadow_rays
+            v = (j + np.random.random()) / num_shadow_rays
+
+            # Map to [-1, 1]
+            u = 2 * u - 1
+            v = 2 * v - 1
+
+            # Sample point on light
+            offset = light_right * (u * light.radius) + light_up * (v * light.radius)
+            samples[idx] = light.position + offset
+            idx += 1
+
+    return samples
+
+
+def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_rays):
+    """
+    Vectorized shadow ray computation - processes all shadow rays simultaneously.
+
+    Args:
+        hit_point: Point on surface (numpy array)
+        light: Light object
+        surfaces: List of all surfaces in the scene
+        num_shadow_rays: Number of shadow rays per axis (N×N total)
+
+    Returns:
+        float: Ratio in [0, 1] of rays that hit the light (0 = fully occluded, 1 = fully visible)
+    """
+    # Direction from hit point to light center
+    to_light = light.position - hit_point
+    to_light_dir = normalize(to_light)
+
+    # For point lights (shadow_intensity = 0) or single ray, do simple test
+    if light.shadow_intensity == 0 or num_shadow_rays == 1:
+        if is_occluded(hit_point, light.position, surfaces):
+            return 0.0
+        else:
+            return 1.0
+
+    # Area light: Generate all shadow samples at once
+    light_right, light_up = create_light_basis(to_light_dir)
+    sample_points = generate_light_samples_vectorized(light, light_right, light_up, num_shadow_rays)
+
+    total_samples = len(sample_points)
+
+    # Prepare ray origins and directions for batch processing
+    ray_origins = np.tile(hit_point, (total_samples, 1))  # (N, 3)
+    ray_directions = sample_points - ray_origins  # (N, 3)
+    distances = np.linalg.norm(ray_directions, axis=1)  # (N,)
+    ray_directions = ray_directions / distances[:, np.newaxis]  # Normalize
+
+    # Track which rays are unoccluded
+    unoccluded_mask = np.ones(total_samples, dtype=bool)
+
+    # Test all surfaces using batch intersection
+    for surface in surfaces:
+        # Check if surface has batch intersection method
+        if hasattr(surface, 'intersect_batch'):
+            t_values = surface.intersect_batch(ray_origins, ray_directions)
+
+            # Mark rays that hit this surface before reaching light
+            blocking_mask = (t_values > EPSILON) & (t_values < distances)
+            unoccluded_mask &= ~blocking_mask  # Set to False if blocked
+        else:
+            # Fallback to single-ray testing for surfaces without batch method
+            for idx in range(total_samples):
+                if unoccluded_mask[idx]:  # Only test if not already blocked
+                    t, _ = surface.intersect(ray_origins[idx], ray_directions[idx])
+                    if t is not None and EPSILON < t < distances[idx]:
+                        unoccluded_mask[idx] = False
+
+    # Return ratio of unoccluded rays
+    return np.sum(unoccluded_mask) / total_samples
+
+
 def compute_shadow_ray_ratio(hit_point, light, surfaces, num_shadow_rays):
     """
     Compute the ratio of shadow rays that successfully reach the light.
@@ -151,7 +246,8 @@ def calculate_light_intensity(hit_point, light, surfaces, num_shadow_rays):
         float: Light intensity in [0, 1] where 1.0 = fully lit, 0.0 = no light
     """
     # Compute what ratio of shadow rays successfully reach the light
-    ray_hit_ratio = compute_shadow_ray_ratio(hit_point, light, surfaces, num_shadow_rays)
+    # Use vectorized version for better performance
+    ray_hit_ratio = compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_rays)
 
     # Apply the shadow intensity formula from the PDF (page 6)
     # light_intensity = (1 - shadow_intensity) + shadow_intensity * ray_hit_ratio

@@ -2,7 +2,6 @@
 
 ## Test Configuration
 - **Scene:** scenes/pool.txt
-- **Resolution:** 200×200 pixels
 - **System:** 11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz
 - **OS:** Linux 6.6.87.2-microsoft-standard-WSL2
 - **Date Started:** 2025-12-28
@@ -10,10 +9,16 @@
 ---
 
 ## Baseline (temp-test branch)
-- **Time:** 264.45 seconds (4.41 minutes)
+
+### 200×200 Resolution
+- **Time:** 268.46 seconds (4.47 minutes)
 - **Image:** baseline/pool_200x200.png
-- **Date:** 2025-12-28
-- **Notes:** Phase 5 complete, opaque shadows only
+- **Notes:** Initial baseline
+
+### 300×300 Resolution (Current Baseline)
+- **Time:** 226.35 seconds (3.77 minutes)
+- **Image:** baseline/pool_300x300.png
+- **Notes:** Larger image for better optimization measurement, Phase 5 complete
 
 ---
 

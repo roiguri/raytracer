@@ -44,3 +44,7 @@ htmlcov/
 *.tmp
 *.bak
 reference/
+
+# Optimization test images
+optimizations/baseline/*.png
+optimizations/test/*.png

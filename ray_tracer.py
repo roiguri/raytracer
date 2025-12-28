@@ -1,6 +1,7 @@
 import argparse
 from PIL import Image
 import numpy as np
+import time
 
 from camera import Camera
 from light import Light
@@ -477,8 +478,13 @@ def render(camera, scene_settings, materials, surfaces, lights, width, height):
     Returns:
         numpy array: Image array (height, width, 3) with values [0, 255]
     """
+    start_time = time.time()
+
     image = np.zeros((height, width, 3))
     num_shadow_rays = int(scene_settings.root_number_shadow_rays)
+
+    total_pixels = width * height
+    pixels_rendered = 0
 
     for y in range(height):
         for x in range(width):
@@ -501,6 +507,41 @@ def render(camera, scene_settings, materials, surfaces, lights, width, height):
             # Clamp color to [0, 1] and convert to [0, 255]
             color = np.clip(color, 0, 1)
             image[y, x] = color * 255
+
+            pixels_rendered += 1
+            if pixels_rendered % width == 0:
+                current_time = time.time()
+                elapsed = current_time - start_time
+
+                ratio = pixels_rendered / total_pixels
+                progress = ratio * 100
+
+                # Calculate rays/sec and ETA
+                rays_per_sec = pixels_rendered / elapsed if elapsed > 0 else 0
+                if ratio > 0:
+                    estimated_total = elapsed / ratio
+                    eta_seconds = estimated_total - elapsed
+                    eta_min = int(eta_seconds // 60)
+                    eta_sec = int(eta_seconds % 60)
+                    eta_str = f"{eta_min:02d}:{eta_sec:02d}"
+                else:
+                    eta_str = "--:--"
+
+                # Progress bar
+                bar_length = 40
+                filled = int(bar_length * ratio)
+                bar = '█' * filled + '░' * (bar_length - filled)
+
+                print(f'\r  Progress: |{bar}| {progress:.1f}% | '
+                      f'{pixels_rendered}/{total_pixels} px | '
+                      f'{rays_per_sec:.0f} rays/s | '
+                      f'ETA: {eta_str}',
+                      end='', flush=True)
+
+    print()
+
+    elapsed_time = time.time() - start_time
+    print(f"  Render time: {elapsed_time:.2f} seconds ({elapsed_time/60:.2f} minutes)")
 
     return image
 

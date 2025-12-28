@@ -15,10 +15,16 @@
 - **Image:** baseline/pool_200x200.png
 - **Notes:** Initial baseline
 
-### 300×300 Resolution (Current Baseline)
+### 300×300 Resolution (Pool Scene - Current Baseline)
 - **Time:** 226.35 seconds (3.77 minutes)
 - **Image:** baseline/pool_300x300.png
 - **Notes:** Larger image for better optimization measurement, Phase 5 complete
+
+### 300×300 Resolution (Cubes Scene - Baseline for Phase 2.3)
+- **Time:** 295.40 seconds (4.92 minutes)
+- **Image:** baseline/cubes_300x300.png
+- **Scene:** scenes/cubes.txt (4 cubes, 2 spheres, 1 plane, 5 lights)
+- **Notes:** Created for Cube batch intersection testing. Slower than pool scene due to more complex cube-ray intersections.
 
 ---
 
@@ -58,29 +64,41 @@
 
 ---
 
-## Phase 2.3: Early Exit Optimization
+## Phase 2.3: Cube Batch Intersection (300×300 Cubes Scene)
+- **Changes:** Implemented intersect_batch() for Cube
+- **Scene:** scenes/cubes.txt (4 cubes, 2 spheres, 1 plane)
+- **Time:** [To be measured]
+- **Expected Speedup:** ~5-10% on cube-heavy scenes
+- **Actual Speedup:** [To be filled]
+- **Image:** test/phase2.3_cube_batch.png
+- **Validation:** [MSE, PSNR values to be filled]
+- **Status:** Not started
+
+---
+
+## Phase 2.4: Early Exit Optimization
 - **Changes:** Skip testing surfaces when all shadow rays blocked
 - **Time:** [To be measured]
 - **Expected Speedup:** +5-10%
 - **Actual Speedup:** [To be filled]
-- **Image:** test/phase2_early_exit.png
+- **Image:** test/phase2.4_early_exit.png
 - **Validation:** [MSE, PSNR values to be filled]
 - **Status:** Not started
 
 ---
 
-## Phase 2.4: Pre-compute Material Arrays
+## Phase 2.5: Pre-compute Material Arrays
 - **Changes:** Convert materials to numpy arrays at render start
 - **Time:** [To be measured]
 - **Expected Speedup:** +3-5%
 - **Actual Speedup:** [To be filled]
-- **Image:** test/phase2_materials.png
+- **Image:** test/phase2.5_materials.png
 - **Validation:** [MSE, PSNR values to be filled]
 - **Status:** Not started
 
 ---
 
-## Phase 2.5: Reduce Normalize Calls
+## Phase 2.6: Reduce Normalize Calls
 - **Changes:** Optimize normalize operations in tight loops
 - **Time:** [To be measured]
 - **Expected Speedup:** +1-2%

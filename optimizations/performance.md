@@ -90,23 +90,15 @@
 
 ## Phase 2.5: Pre-compute Material Arrays
 - **Changes:** Convert materials to numpy arrays at render start
-- **Time:** [To be measured]
-- **Expected Speedup:** +3-5%
-- **Actual Speedup:** [To be filled]
-- **Image:** test/phase2.5_materials.png
-- **Validation:** [MSE, PSNR values to be filled]
-- **Status:** Not started
+- **Status:** ✗ SKIPPED
+- **Reason:** Would require extensive refactoring (passing material arrays through all functions). Materials are accessed per-pixel, not in tight inner loops, so expected 3-5% gain doesn't justify the code complexity increase.
 
 ---
 
 ## Phase 2.6: Reduce Normalize Calls
-- **Changes:** Optimize normalize operations in tight loops
-- **Time:** [To be measured]
-- **Expected Speedup:** +1-2%
-- **Actual Speedup:** [To be filled]
-- **Image:** test/phase2_final.png
-- **Validation:** [MSE, PSNR values to be filled]
-- **Status:** Not started
+- **Changes:** Optimize normalize operations by combining with distance calculation
+- **Status:** ✗ SKIPPED
+- **Reason:** Investigation revealed the `normalize()` function already uses `np.linalg.norm()` internally, so the proposed optimization provides no actual benefit. Test showed 62% slowdown (likely due to removing zero-length vector check).
 
 ---
 
@@ -124,12 +116,22 @@
 
 ## Summary
 
-| Phase | Time (s) | Speedup vs Baseline | Cumulative Speedup |
-|-------|----------|---------------------|-------------------|
-| Baseline | 268.46 | 0% | 0% |
-| Phase 1 | 268.46 | 0% | 0% |
-| Phase 2.1 | 100.61 | 62.5% | 62.5% |
-| Phase 2.2+ | [TBD] | [TBD] | [TBD] |
+| Phase | Scene | Resolution | Time (s) | Speedup vs Baseline | Notes |
+|-------|-------|------------|----------|---------------------|-------|
+| Baseline | Pool | 200×200 | 268.46 | 0% | Initial baseline |
+| Phase 1 | Pool | 200×200 | ~268 | 0% | Progress tracking only |
+| Phase 2.1 | Pool | 200×200 | 100.61 | 62.5% | Sphere batch intersection |
+| Phase 2.2 | Pool | 300×300 | 208.49 | 7.9% (vs 300×300 baseline) | Plane batch intersection |
+| Phase 2.3 | Cubes | 300×300 | 242.29 | 18.0% (vs cubes baseline) | Cube batch intersection |
+| Phase 2.4 | Pool | 300×300 | 206.25 | 1.1% (vs Phase 2.2) | Early exit optimization |
+| Phase 2.5 | - | - | - | - | SKIPPED (complexity vs gain) |
+| Phase 2.6 | - | - | - | - | SKIPPED (no actual benefit) |
 
-**Target:** 40%+ speedup (268s → <161s)
-**Current Status:** ✓ Target EXCEEDED (268s → 100.61s)
+**Target:** 40%+ speedup (268s → <161s for 200×200)
+**Current Status:** ✓ Target EXCEEDED
+
+**Phase 2 Complete:**
+- 200×200 pool scene: 268.46s → 100.61s (62.5% faster, 2.67× speedup)
+- 300×300 pool scene: 226.35s → 206.25s (8.9% faster)
+- All optimizations focused on vectorizing shadow ray computation
+- Image quality maintained (MSE < 0.001, PSNR > 40 dB)

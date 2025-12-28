@@ -78,12 +78,13 @@
 
 ## Phase 2.4: Early Exit Optimization
 - **Changes:** Skip testing surfaces when all shadow rays blocked
-- **Time:** [To be measured]
+- **Time:** 206.25 seconds (3.44 minutes)
 - **Expected Speedup:** +5-10%
-- **Actual Speedup:** [To be filled]
+- **Actual Speedup:** 1.1% faster than Phase 2.2 (208.49s → 206.25s)
 - **Image:** test/phase2.4_early_exit.png
-- **Validation:** [MSE, PSNR values to be filled]
-- **Status:** Not started
+- **Validation:** MSE 0.000071 (✓), PSNR 41.50 dB (✓)
+- **Notes:** Lower than expected due to pool scene having many partially-lit areas. More effective in scenes with complete shadows.
+- **Status:** ✓ Complete
 
 ---
 

@@ -161,6 +161,9 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, num_shadow_r
     unoccluded_mask = np.ones(total_samples, dtype=bool)
 
     for surface in surfaces:
+        if not np.any(unoccluded_mask):
+            return 0.0
+
         t_values = surface.intersect_batch(ray_origins, ray_directions)
         blocking_mask = (t_values > EPSILON) & (t_values < distances)
         unoccluded_mask &= ~blocking_mask

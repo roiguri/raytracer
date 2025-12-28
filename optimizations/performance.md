@@ -67,12 +67,12 @@
 ## Phase 2.3: Cube Batch Intersection (300×300 Cubes Scene)
 - **Changes:** Implemented intersect_batch() for Cube
 - **Scene:** scenes/cubes.txt (4 cubes, 2 spheres, 1 plane)
-- **Time:** [To be measured]
-- **Expected Speedup:** ~5-10% on cube-heavy scenes
-- **Actual Speedup:** [To be filled]
+- **Time:** 242.29 seconds (4.04 minutes)
+- **Speedup:** 18.0% faster than cubes baseline (295.40s → 242.29s)
 - **Image:** test/phase2.3_cube_batch.png
-- **Validation:** [MSE, PSNR values to be filled]
-- **Status:** Not started
+- **Validation:** MSE 0.000078 (✓), PSNR 41.06 dB (✓)
+- **Notes:** Significant improvement on cube-heavy scenes. Vectorized slab method for axis-aligned box intersection.
+- **Status:** ✓ Complete
 
 ---
 

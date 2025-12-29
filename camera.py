@@ -32,7 +32,7 @@ class Camera:
         screen_height = self.screen_width * (image_height / image_width)
 
         # Normalize pixel coordinates to [-0.5, 0.5] range
-        norm_x = (pixel_x + 0.5) / image_width - 0.5
+        norm_x = -((pixel_x + 0.5) / image_width - 0.5)
         norm_y = (pixel_y + 0.5) / image_height - 0.5
 
         # Calculate point on screen plane

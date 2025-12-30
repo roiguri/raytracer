@@ -162,8 +162,10 @@ class Cube:
         invalid_mask = miss_mask | behind_mask
 
         # Calculate final t values
-        # Use t_near if positive, otherwise no valid intersection
-        t_values = np.where(t_near > EPSILON, t_near, np.inf)
+        # Use t_near if positive, otherwise t_far (ray starts inside/on box)
+        # This matches the non-batch version logic at lines 78-86
+        t_values = np.where(t_near > EPSILON, t_near,
+                           np.where(t_far > EPSILON, t_far, np.inf))
 
         # Set invalid intersections to infinity
         t_values[invalid_mask] = np.inf

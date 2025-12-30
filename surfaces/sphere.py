@@ -112,12 +112,14 @@ class Sphere:
             t2 = (-b_valid + sqrt_disc) / (2.0 * a_valid)
 
             # Choose nearest positive t for each ray
-            # If t1 > EPSILON, use t1 (closer intersection)
-            # Else if t2 > EPSILON, use t2 (farther intersection, ray inside sphere)
-            # Else no valid intersection (both behind ray or too close)
-            t_near = np.where(t1 > EPSILON, t1, t2)
+            # If t1 > 0, use t1 (closer intersection)
+            # Else if t2 > 0, use t2 (farther intersection, ray inside sphere)
+            # Else no valid intersection (both behind ray)
+            # This matches the non-batch version logic at lines 54-59
+            t_near = np.where(t1 > 0, t1, t2)
 
             # Only keep intersections that are in front of the ray
+            # Use EPSILON threshold to avoid self-intersection artifacts
             t_values[valid_mask] = np.where(t_near > EPSILON, t_near, np.inf)
 
         return t_values

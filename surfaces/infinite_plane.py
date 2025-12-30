@@ -74,7 +74,8 @@ class InfinitePlane:
         )
 
         # Only keep positive t values (intersections in front of rays)
-        # Set negative t to infinity (no valid intersection)
+        # Use EPSILON threshold to avoid self-intersection artifacts
+        # This matches the non-batch version logic at line 41 (t > 0)
         t_values = np.where(t_values > EPSILON, t_values, np.inf)
 
         return t_values

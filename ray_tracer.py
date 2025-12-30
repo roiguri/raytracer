@@ -10,119 +10,9 @@ from scene_settings import SceneSettings
 from surfaces.cube import Cube
 from surfaces.infinite_plane import InfinitePlane
 from surfaces.sphere import Sphere
-from constants import EPSILON, MIN_T
-from utils import normalize
+from utils import normalize, EPSILON
 
-def is_occluded(hit_point, target_point, surfaces):
-    """
-    Check if a point is occluded from a target point by any surface.
-
-    Args:
-        hit_point: Starting point (numpy array)
-        target_point: Target point to check visibility to (numpy array)
-        surfaces: List of all surfaces in the scene
-
-    Returns:
-        bool: True if occluded, False if visible
-    """
-    to_target = target_point - hit_point
-    distance = np.linalg.norm(to_target)
-    direction = to_target / distance
-
-    for surface in surfaces:
-        t, _ = surface.intersect(hit_point, direction)
-        if t is not None and MIN_T < t < distance:
-            return True
-    return False
-
-
-def create_light_basis(to_light_direction):
-    """
-    Create an orthonormal basis for sampling a light plane perpendicular to the light direction.
-
-    Args:
-        to_light_direction: Normalized direction from hit point to light (numpy array)
-
-    Returns:
-        tuple: (right_vector, up_vector) - orthonormal basis vectors
-    """
-    # Choose an arbitrary perpendicular vector
-    if abs(to_light_direction[0]) > 0.1:
-        perpendicular = np.array([0, 1, 0])
-    else:
-        perpendicular = np.array([1, 0, 0])
-
-    light_right = normalize(np.cross(to_light_direction, perpendicular))
-    light_up = normalize(np.cross(light_right, to_light_direction))
-
-    return light_right, light_up
-
-
-def sample_light_point(light, light_right, light_up, cell_i, cell_j, num_shadow_rays):
-    """
-    Sample a random point on the light surface using jittered grid sampling.
-
-    Args:
-        light: Light object
-        light_right: Right basis vector for light plane
-        light_up: Up basis vector for light plane
-        cell_i: Grid cell index in first dimension
-        cell_j: Grid cell index in second dimension
-        num_shadow_rays: Number of shadow rays per axis (N×N total grid)
-
-    Returns:
-        numpy array: Sampled point on light surface
-    """
-    # Grid cell position [0, 1] with random jitter
-    u = (cell_i + np.random.random()) / num_shadow_rays
-    v = (cell_j + np.random.random()) / num_shadow_rays
-
-    # Map to disk: convert [0,1]×[0,1] to [-1,1]×[-1,1]
-    u = 2 * u - 1
-    v = 2 * v - 1
-
-    # Sample point on light surface area
-    # Scale the normalized coordinates by the light radius
-    sample_offset = light_right * (u * light.radius) + light_up * (v * light.radius)
-    return light.position + sample_offset
-
-
-def generate_light_samples_vectorized(light, light_right, light_up, num_shadow_rays):
-    """
-    Generate all N×N shadow sample points at once using vectorized operations.
-
-    Args:
-        light: Light object
-        light_right: Right basis vector for light plane
-        light_up: Up basis vector for light plane
-        num_shadow_rays: Number of shadow rays per axis (N×N total grid)
-
-    Returns:
-        np.ndarray, shape (N*N, 3) - all sample points on light surface
-    """
-    total_samples = num_shadow_rays * num_shadow_rays
-    samples = np.zeros((total_samples, 3))
-
-    idx = 0
-    for i in range(num_shadow_rays):
-        for j in range(num_shadow_rays):
-            # Jittered grid sampling
-            u = (i + np.random.random()) / num_shadow_rays
-            v = (j + np.random.random()) / num_shadow_rays
-
-            # Map to [-1, 1]
-            u = 2 * u - 1
-            v = 2 * v - 1
-
-            # Sample point on light
-            offset = light_right * (u * light.radius) + light_up * (v * light.radius)
-            samples[idx] = light.position + offset
-            idx += 1
-
-    return samples
-
-
-def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, num_shadow_rays):
+def compute_shadow_ray_ratio_vectorized(hit_point, light, scene_settings, num_shadow_rays):
     """
     Vectorized shadow ray computation with transparency support.
 
@@ -132,8 +22,7 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, n
     Args:
         hit_point: Point on surface (numpy array)
         light: Light object
-        surfaces: List of all surfaces in the scene
-        materials: List of all materials
+        scene_settings: SceneSettings object containing surfaces and materials
         num_shadow_rays: Number of shadow rays per axis (N×N total)
 
     Returns:
@@ -149,18 +38,18 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, n
         distance_to_light = np.linalg.norm(to_light)
         direction_to_light = to_light_dir
 
-        for surface in surfaces:
+        for surface in scene_settings.surfaces:
             t, _ = surface.intersect(hit_point, direction_to_light)
             if t is not None and EPSILON < t < distance_to_light:
-                material = materials[surface.material_index - 1]
+                material = scene_settings.materials[surface.material_index - 1]
                 light_factor *= material.transparency
                 if light_factor == 0.0:
                     break
         return light_factor
 
     # Area light: Generate all shadow samples at once
-    light_right, light_up = create_light_basis(to_light_dir)
-    sample_points = generate_light_samples_vectorized(light, light_right, light_up, num_shadow_rays)
+    light_right, light_up = light.create_basis(to_light_dir)
+    sample_points = light.generate_samples(light_right, light_up, num_shadow_rays)
 
     total_samples = len(sample_points)
 
@@ -174,7 +63,7 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, n
     light_factors = np.ones(total_samples, dtype=np.float64)
 
     # Test each surface against all shadow rays
-    for surface in surfaces:
+    for surface in scene_settings.surfaces:
         # OPTIMIZATION: Early exit if all rays are fully blocked
         if np.all(light_factors == 0.0):
             return 0.0
@@ -187,7 +76,7 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, n
 
         # Accumulate transparency for blocked rays
         if np.any(blocking_mask):
-            material = materials[surface.material_index - 1]
+            material = scene_settings.materials[surface.material_index - 1]
 
             # OPTIMIZATION: Early exit if material is fully opaque
             if material.transparency == 0.0:
@@ -199,7 +88,7 @@ def compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, n
     return np.mean(light_factors)
 
 
-def calculate_light_intensity(hit_point, light, surfaces, materials, num_shadow_rays):
+def calculate_light_intensity(hit_point, light, scene_settings, num_shadow_rays):
     """
     Calculate light intensity for a point, accounting for shadows using the PDF formula.
 
@@ -214,7 +103,7 @@ def calculate_light_intensity(hit_point, light, surfaces, materials, num_shadow_
     Args:
         hit_point: Point on surface (numpy array)
         light: Light object
-        surfaces: List of all surfaces in the scene
+        scene_settings: SceneSettings object containing surfaces and materials
         num_shadow_rays: Number of shadow rays to cast (N×N grid)
 
     Returns:
@@ -222,7 +111,7 @@ def calculate_light_intensity(hit_point, light, surfaces, materials, num_shadow_
     """
     # Compute what ratio of shadow rays successfully reach the light
     # Use vectorized version with transparency support for better performance
-    ray_hit_ratio = compute_shadow_ray_ratio_vectorized(hit_point, light, surfaces, materials, num_shadow_rays)
+    ray_hit_ratio = compute_shadow_ray_ratio_vectorized(hit_point, light, scene_settings, num_shadow_rays)
 
     # Apply the shadow intensity formula from the PDF (page 6)
     # light_intensity = (1 - shadow_intensity) + shadow_intensity * ray_hit_ratio
@@ -258,38 +147,7 @@ def calculate_reflection_direction(incident_direction, normal):
     return incident_direction - 2 * np.dot(incident_direction, normal) * normal
 
 
-def find_nearest_intersection(ray_origin, ray_direction, surfaces, min_t=MIN_T):
-    """
-    Find the nearest surface intersection along a ray.
-
-    Args:
-        ray_origin: Origin of the ray (numpy array)
-        ray_direction: Direction of the ray (normalized numpy array)
-        surfaces: List of surface objects
-        min_t: Minimum distance to consider (prevents self-intersection)
-
-    Returns:
-        tuple: (t, hit_point, normal, surface) if hit, else (None, None, None, None)
-    """
-    nearest_t = float('inf')
-    nearest_normal = None
-    nearest_surface = None
-
-    for surface in surfaces:
-        t, normal = surface.intersect(ray_origin, ray_direction)
-        if t is not None and t > min_t and t < nearest_t:
-            nearest_t = t
-            nearest_normal = normal
-            nearest_surface = surface
-
-    if nearest_surface is None:
-        return None, None, None, None
-
-    hit_point = ray_origin + nearest_t * ray_direction
-    return nearest_t, hit_point, nearest_normal, nearest_surface
-
-
-def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfaces, materials, num_shadow_rays):
+def calculate_phong_shading(hit_point, normal, view_dir, material, scene_settings, num_shadow_rays):
     """
     Calculate Phong shading (diffuse + specular) for a point with shadows and transparency.
 
@@ -300,9 +158,7 @@ def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfa
         normal: Surface normal at hit point (normalized)
         view_dir: Direction from hit point to viewer (normalized)
         material: Material object of the surface
-        lights: List of light sources
-        surfaces: List of all surfaces (for shadow ray testing)
-        materials: List of all materials (for transparency)
+        scene_settings: SceneSettings object containing lights, surfaces, and materials
         num_shadow_rays: Number of shadow rays per axis (N×N total samples)
 
     Returns:
@@ -310,13 +166,13 @@ def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfa
     """
     color = np.zeros(3)
 
-    for light in lights:
+    for light in scene_settings.lights:
         # Direction to light
         light_direction = light.position - hit_point
         light_direction = normalize(light_direction)
 
         # Calculate light intensity accounting for shadows and transparency
-        light_intensity = calculate_light_intensity(hit_point, light, surfaces, materials, num_shadow_rays)
+        light_intensity = calculate_light_intensity(hit_point, light, scene_settings, num_shadow_rays)
 
         # Skip this light if no light reaches the surface
         if light_intensity == 0:
@@ -343,8 +199,8 @@ def calculate_phong_shading(hit_point, normal, view_dir, material, lights, surfa
     return color
 
 
-def calculate_reflection_contribution(hit_point, ray_direction, normal, material, surfaces,
-                                      materials, lights, scene_settings, num_shadow_rays, current_depth):
+def calculate_reflection_contribution(hit_point, ray_direction, normal, material,
+                                      scene_settings, num_shadow_rays, current_depth):
     """
     Calculate the color contribution from reflections.
 
@@ -355,10 +211,7 @@ def calculate_reflection_contribution(hit_point, ray_direction, normal, material
         ray_direction: Direction of incident ray (numpy array)
         normal: Surface normal at hit point (numpy array)
         material: Material of the surface
-        surfaces: List of all surfaces in scene
-        materials: List of all materials
-        lights: List of all lights
-        scene_settings: SceneSettings object
+        scene_settings: SceneSettings object containing all scene data
         num_shadow_rays: Number of shadow rays for soft shadows
         current_depth: Current recursion depth
 
@@ -373,15 +226,12 @@ def calculate_reflection_contribution(hit_point, ray_direction, normal, material
     reflection_dir = calculate_reflection_direction(ray_direction, normal)
 
     # Start slightly offset from surface to avoid self-intersection
-    reflection_origin = hit_point + normal * MIN_T
+    reflection_origin = hit_point + normal * EPSILON
 
     # Recursively trace the reflection ray
     reflected_scene_color = trace_ray(
         reflection_origin,
         reflection_dir,
-        surfaces,
-        materials,
-        lights,
         scene_settings,
         num_shadow_rays,
         current_depth + 1
@@ -391,8 +241,8 @@ def calculate_reflection_contribution(hit_point, ray_direction, normal, material
     return reflected_scene_color * np.array(material.reflection_color)
 
 
-def calculate_transparency_contribution(hit_point, ray_direction, material, surfaces,
-                                       materials, lights, scene_settings, num_shadow_rays, current_depth):
+def calculate_transparency_contribution(hit_point, ray_direction, material,
+                                       scene_settings, num_shadow_rays, current_depth):
     """
     Calculate the color contribution from transparency.
 
@@ -402,10 +252,7 @@ def calculate_transparency_contribution(hit_point, ray_direction, material, surf
         hit_point: Point on surface where ray hit (numpy array)
         ray_direction: Direction of incident ray (numpy array)
         material: Material of the surface
-        surfaces: List of all surfaces in scene
-        materials: List of all materials
-        lights: List of all lights
-        scene_settings: SceneSettings object
+        scene_settings: SceneSettings object containing all scene data
         num_shadow_rays: Number of shadow rays for soft shadows
         current_depth: Current recursion depth
 
@@ -418,15 +265,12 @@ def calculate_transparency_contribution(hit_point, ray_direction, material, surf
 
     # Continue ray in SAME direction (straight through)
     # Offset along ray direction to avoid self-intersection
-    transparency_origin = hit_point + ray_direction * MIN_T
+    transparency_origin = hit_point + ray_direction * EPSILON
 
     # Recursively trace to find what's behind this surface
     background_scene_color = trace_ray(
         transparency_origin,
         ray_direction,  # Same direction - ray continues straight
-        surfaces,
-        materials,
-        lights,
         scene_settings,
         num_shadow_rays,
         current_depth + 1
@@ -436,33 +280,7 @@ def calculate_transparency_contribution(hit_point, ray_direction, material, surf
     return background_scene_color * material.transparency
 
 
-def combine_color_components(local_color, reflection_color, transparency_color, material):
-    """
-    Combine local, reflection, and transparency colors using the PDF formula.
-
-    Formula (PDF page 5):
-        output = (background) · transparency
-               + (diffuse + specular) · (1 − transparency)
-               + (reflection)
-
-    Args:
-        local_color: Diffuse + specular from Phong shading (numpy array)
-        reflection_color: Color from reflections (numpy array)
-        transparency_color: Color from transparency (background) (numpy array)
-        material: Material object
-
-    Returns:
-        numpy array: Final combined RGB color [0, 1]
-    """
-    return (
-        transparency_color +                           # background · transparency
-        local_color * (1.0 - material.transparency) +  # local · (1 - transparency)
-        reflection_color                               # reflection (independent!)
-    )
-
-
-def trace_ray(ray_origin, ray_direction, surfaces, materials, lights, scene_settings,
-              num_shadow_rays, current_depth=0):
+def trace_ray(ray_origin, ray_direction, scene_settings, num_shadow_rays, current_depth=0):
     """
     Recursively trace a ray through the scene, handling reflections and transparency.
 
@@ -476,10 +294,7 @@ def trace_ray(ray_origin, ray_direction, surfaces, materials, lights, scene_sett
     Args:
         ray_origin: Origin point of the ray (numpy array)
         ray_direction: Direction of the ray (normalized numpy array)
-        surfaces: List of all surfaces in the scene
-        materials: List of Material objects
-        lights: List of Light objects
-        scene_settings: SceneSettings object (contains background_color, max_recursions)
+        scene_settings: SceneSettings object containing all scene data
         num_shadow_rays: Number of shadow rays for soft shadows
         current_depth: Current recursion depth (starts at 0)
 
@@ -492,8 +307,8 @@ def trace_ray(ray_origin, ray_direction, surfaces, materials, lights, scene_sett
         return np.array(scene_settings.background_color)
 
     # Find the nearest surface intersection
-    _, hit_point, normal, surface = find_nearest_intersection(
-        ray_origin, ray_direction, surfaces
+    _, hit_point, normal, surface = scene_settings.find_nearest_intersection(
+        ray_origin, ray_direction
     )
 
     # BASE CASE 2: Ray doesn't hit anything
@@ -503,35 +318,35 @@ def trace_ray(ray_origin, ray_direction, surfaces, materials, lights, scene_sett
 
     # RECURSIVE CASE: Ray hit a surface
     # TODO: verify material index is valid
-    material = materials[surface.material_index - 1]
+    material = scene_settings.materials[surface.material_index - 1]
 
     # ===== STEP 1: Calculate LOCAL color (diffuse + specular with shadows) =====
     view_dir = normalize(ray_origin - hit_point)
     local_color = calculate_phong_shading(
-        hit_point, normal, view_dir, material, lights, surfaces, materials, num_shadow_rays
+        hit_point, normal, view_dir, material, scene_settings, num_shadow_rays
     )
 
     # ===== STEP 2: Calculate REFLECTION contribution =====
     reflection_color = calculate_reflection_contribution(
-        hit_point, ray_direction, normal, material, surfaces, materials,
-        lights, scene_settings, num_shadow_rays, current_depth
+        hit_point, ray_direction, normal, material,
+        scene_settings, num_shadow_rays, current_depth
     )
 
     # ===== STEP 3: Calculate TRANSPARENCY contribution =====
     transparency_color = calculate_transparency_contribution(
-        hit_point, ray_direction, material, surfaces, materials,
-        lights, scene_settings, num_shadow_rays, current_depth
+        hit_point, ray_direction, material,
+        scene_settings, num_shadow_rays, current_depth
     )
 
     # ===== STEP 4: Combine all components using PDF formula =====
-    final_color = combine_color_components(
-        local_color, reflection_color, transparency_color, material
+    final_color = material.blend_colors(
+        local_color, reflection_color, transparency_color
     )
 
     return final_color
 
 
-def render(camera, scene_settings, materials, surfaces, lights, width, height):
+def render(scene_settings, width, height):
     """
     Render the scene with recursive ray tracing (reflections, transparency, soft shadows).
 
@@ -539,11 +354,7 @@ def render(camera, scene_settings, materials, surfaces, lights, width, height):
     uses recursive ray tracing to calculate the final color.
 
     Args:
-        camera: Camera object
-        scene_settings: SceneSettings object
-        materials: List of Material objects
-        surfaces: List of surface objects (spheres, planes, cubes)
-        lights: List of Light objects
+        scene_settings: SceneSettings object containing camera, surfaces, materials, lights, and settings
         width: Image width in pixels
         height: Image height in pixels
 
@@ -561,16 +372,13 @@ def render(camera, scene_settings, materials, surfaces, lights, width, height):
     for y in range(height):
         for x in range(width):
             # Generate ray for this pixel (from camera through pixel)
-            ray_origin, ray_direction = camera.get_ray(x, y, width, height)
+            ray_origin, ray_direction = scene_settings.camera.get_ray(x, y, width, height)
 
             # Recursively trace this ray through the scene
             # This handles: intersection, shading, reflections, transparency
             color = trace_ray(
                 ray_origin,
                 ray_direction,
-                surfaces,
-                materials,
-                lights,
                 scene_settings,
                 num_shadow_rays,
                 current_depth=0  # Start at depth 0
@@ -621,7 +429,10 @@ def render(camera, scene_settings, materials, surfaces, lights, width, height):
 def parse_scene_file(file_path):
     objects = []
     camera = None
-    scene_settings = None
+    background_color = None
+    root_number_shadow_rays = None
+    max_recursions = None
+
     with open(file_path, 'r') as f:
         for line in f:
             line = line.strip()
@@ -633,7 +444,9 @@ def parse_scene_file(file_path):
             if obj_type == "cam":
                 camera = Camera(params[:3], params[3:6], params[6:9], params[9], params[10])
             elif obj_type == "set":
-                scene_settings = SceneSettings(params[:3], params[3], params[4])
+                background_color = params[:3]
+                root_number_shadow_rays = params[3]
+                max_recursions = params[4]
             elif obj_type == "mtl":
                 material = Material(params[:3], params[3:6], params[6:9], params[9], params[10])
                 objects.append(material)
@@ -651,7 +464,19 @@ def parse_scene_file(file_path):
                 objects.append(light)
             else:
                 raise ValueError("Unknown object type: {}".format(obj_type))
-    return camera, scene_settings, objects
+
+    # Separate objects by type
+    materials = [obj for obj in objects if isinstance(obj, Material)]
+    surfaces = [obj for obj in objects if isinstance(obj, (Sphere, InfinitePlane, Cube))]
+    lights = [obj for obj in objects if isinstance(obj, Light)]
+
+    # Create SceneSettings with all scene objects
+    scene_settings = SceneSettings(
+        background_color, root_number_shadow_rays, max_recursions,
+        camera, surfaces, materials, lights
+    )
+
+    return scene_settings
 
 
 def save_image(image_array):
@@ -670,22 +495,16 @@ def main():
     args = parser.parse_args()
 
     # Parse the scene file
-    camera, scene_settings, objects = parse_scene_file(args.scene_file)
-
-    # Separate objects by type
-    materials = [obj for obj in objects if isinstance(obj, Material)]
-    surfaces = [obj for obj in objects if isinstance(obj, (Sphere, InfinitePlane, Cube))]
-    lights = [obj for obj in objects if isinstance(obj, Light)]
+    scene_settings = parse_scene_file(args.scene_file)
 
     print(f"Scene loaded:")
-    print(f"  Materials: {len(materials)}")
-    print(f"  Surfaces: {len(surfaces)}")
-    print(f"  Lights: {len(lights)}")
+    print(f"  Materials: {len(scene_settings.materials)}")
+    print(f"  Surfaces: {len(scene_settings.surfaces)}")
+    print(f"  Lights: {len(scene_settings.lights)}")
     print(f"Rendering {args.width}x{args.height} image...")
 
     # Render the scene
-    image_array = render(camera, scene_settings, materials, surfaces, lights,
-                        args.width, args.height)
+    image_array = render(scene_settings, args.width, args.height)
 
     # Save the output image
     image = Image.fromarray(np.uint8(image_array))

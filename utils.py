@@ -1,5 +1,10 @@
 import numpy as np
 
+# Epsilon for floating-point comparisons
+# Used to check if values are "close enough" to zero
+# Also used as minimum t value to prevent self-intersection
+EPSILON = 1e-6
+
 
 def normalize(v):
     """

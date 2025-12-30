@@ -1,0 +1,46 @@
+# Camera
+cam 		0	1.5	4	0	0.8	0	0	1	0	1.5	2
+
+# Settings: white background, 2 shadow rays for speed, less recursion
+set 		1	1	1	2	5
+
+# Materials:
+# Material 1: Semi-transparent red cube
+mtl		0.9	0.1	0.1	1	1	1	0.2	0.2	0.2	40	0.5
+
+# Material 2: Opaque blue cube
+mtl		0.1	0.3	0.9	1	1	1	0.3	0.3	0.3	30	0
+
+# Material 3: Ground - grey
+mtl		0.6	0.6	0.6	0.2	0.2	0.2	0.05	0.05	0.05	10	0
+
+# Material 4: Very transparent green cube
+mtl		0.1	0.9	0.3	1	1	1	0.2	0.2	0.2	40	0.8
+
+# Objects:
+# Ground plane
+pln		0	1	0	0	3
+
+# Back-right: Opaque blue cube (furthest, size 0.9)
+# Center at (0.9, 0.45, -1.9)
+box		0.9	0.45	-1.9	0.9	2
+
+# Blue sphere on top of blue cube
+# Cube top is at y=0.9, sphere radius 0.45, so sphere center at y=1.35
+sph		0.9	1.35	-1.9	0.45	2
+
+# Middle: Semi-transparent red sphere (radius ~0.45)
+# Center at (0, 0.45, -1), small gap between objects
+sph		0	0.45	-1	0.45	1
+
+# Front-left: Very transparent green cube (closest to camera, size 0.9)
+# Center at (-0.9, 0.45, -0.1)
+box		-0.9	0.45	-0.1	0.9	4
+
+# Green sphere inside green cube (same transparency, radius 0.45 to touch all faces)
+# Cube size 0.9, half-size 0.45, so sphere radius 0.45 touches all faces
+sph		-0.9	0.45	-0.1	0.45	4
+
+# Light: Positioned behind cubes so shadows face camera
+lgt		-2	3	-2	1	1	1	1	0.8	0.3
+

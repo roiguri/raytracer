@@ -45,16 +45,14 @@ class Light:
         Returns:
             numpy array: Sampled point on light surface
         """
-        # Grid cell position [0, 1] with random jitter
+        # Grid cell position [0, 1] with noise
         u = (cell_i + np.random.random()) / num_shadow_rays
         v = (cell_j + np.random.random()) / num_shadow_rays
 
-        # Map to disk: convert [0,1]×[0,1] to [-1,1]×[-1,1]
+        # Convert [0,1]×[0,1] to [-1,1]×[-1,1]
         u = 2 * u - 1
         v = 2 * v - 1
 
-        # Sample point on light surface area
-        # Scale the normalized coordinates by the light radius
         sample_offset = light_right * (u * self.radius) + light_up * (v * self.radius)
         return self.position + sample_offset
 
@@ -76,11 +74,10 @@ class Light:
         idx = 0
         for i in range(num_shadow_rays):
             for j in range(num_shadow_rays):
-                # Jittered grid sampling
                 u = (i + np.random.random()) / num_shadow_rays
                 v = (j + np.random.random()) / num_shadow_rays
 
-                # Map to [-1, 1]
+                # Convert [0,1]×[0,1] to [-1, 1]×[-1, 1]
                 u = 2 * u - 1
                 v = 2 * v - 1
 

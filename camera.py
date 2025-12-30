@@ -28,20 +28,17 @@ class Camera:
         Returns:
             tuple: (ray_origin, ray_direction) both as numpy arrays
         """
-        # Calculate screen height based on aspect ratio
         screen_height = self.screen_width * (image_height / image_width)
 
         # Normalize pixel coordinates to [-0.5, 0.5] range
         norm_x = -((pixel_x + 0.5) / image_width - 0.5) # minus sign to reverse x-axis
         norm_y = (pixel_y + 0.5) / image_height - 0.5
 
-        # Calculate point on screen plane
         screen_center = self.position + self.forward * self.screen_distance
         screen_point = (screen_center +
                        self.right * (norm_x * self.screen_width) +
                        self.up * (-norm_y * screen_height))
 
-        # Calculate ray direction
         ray_direction = normalize(screen_point - self.position)
 
         return self.position, ray_direction

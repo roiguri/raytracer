@@ -31,30 +31,6 @@ class Light:
 
         return light_right, light_up
 
-    def sample_point(self, light_right, light_up, cell_i, cell_j, num_shadow_rays):
-        """
-        Sample a random point on the light surface using jittered grid sampling.
-
-        Args:
-            light_right: Right basis vector for light plane
-            light_up: Up basis vector for light plane
-            cell_i: Grid cell index in first dimension
-            cell_j: Grid cell index in second dimension
-            num_shadow_rays: Number of shadow rays per axis (N×N total grid)
-
-        Returns:
-            numpy array: Sampled point on light surface
-        """
-        # Grid cell position [0, 1] with noise
-        u = (cell_i + np.random.random()) / num_shadow_rays
-        v = (cell_j + np.random.random()) / num_shadow_rays
-
-        # Convert [0,1]×[0,1] to [-1,1]×[-1,1]
-        u = 2 * u - 1
-        v = 2 * v - 1
-
-        sample_offset = light_right * (u * self.radius) + light_up * (v * self.radius)
-        return self.position + sample_offset
 
     def generate_samples(self, light_right, light_up, num_shadow_rays):
         """
@@ -77,9 +53,9 @@ class Light:
                 u = (i + np.random.random()) / num_shadow_rays
                 v = (j + np.random.random()) / num_shadow_rays
 
-                # Convert [0,1]×[0,1] to [-1, 1]×[-1, 1]
-                u = 2 * u - 1
-                v = 2 * v - 1
+                # Shift to center: [0, 1] -> [-0.5, 0.5]
+                u = u - 0.5
+                v = v - 0.5
 
                 # Sample point on light
                 offset = light_right * (u * self.radius) + light_up * (v * self.radius)

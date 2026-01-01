@@ -49,3 +49,4 @@ reference/
 optimizations/baseline/*.png
 optimizations/test/*.png
 !original.png
+!our_pool_example.png
